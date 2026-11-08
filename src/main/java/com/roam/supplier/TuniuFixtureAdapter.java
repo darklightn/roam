@@ -122,7 +122,7 @@ public class TuniuFixtureAdapter implements SupplierAdapter {
     public SupplierOrderResult createOrder(SupplierOrderCommand command) {
         int count = calls.merge(command.orderId() + ":" + OperationType.BOOK, 1, Integer::sum);
         beforeSupplierCall.run();
-        AttemptOutcome outcome = script.next(OperationType.BOOK, command.orderId());
+        AttemptOutcome outcome = script.next(OperationType.BOOK, command.orderId(), command.type());
         if (outcome == null || outcome == AttemptOutcome.SUCCESS) {
             String supplierOrderId = nextSupplierOrderId(command.type());
             return SupplierOrderResult.success(supplierOrderId, rawReferences(command.type(), supplierOrderId));
@@ -150,7 +150,7 @@ public class TuniuFixtureAdapter implements SupplierAdapter {
         if (command.paid()) {
             return cancelFailure(FailureType.UNSUPPORTED, "Paid orders cannot be cancelled in the MVP", "TUNIU_PAID_ORDER");
         }
-        AttemptOutcome outcome = script.next(OperationType.CANCEL, command.orderId());
+        AttemptOutcome outcome = script.next(OperationType.CANCEL, command.orderId(), command.type());
         if (outcome == null || outcome == AttemptOutcome.SUCCESS) {
             return SupplierCancelResult.cancelled(false);
         }
