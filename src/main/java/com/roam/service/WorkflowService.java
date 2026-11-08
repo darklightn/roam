@@ -135,15 +135,15 @@ public class WorkflowService {
         if (!trip.isApprovedForCurrentVersion()) {
             throw RoamException.conflict("workflow execution requires an approved Trip Request");
         }
+        if (workflow.status() == WorkflowStatus.COMPLETED) {
+            return result(workflow);
+        }
         TravelPlan plan = planning.latest(trip.id(), actor);
         for (IntentRecord intent : workflow.intents()) {
             if (selectedOptionFor(plan, workflow.request(intent.id())) == null) {
                 throw RoamException.conflict(
                         "select an option and quote for intent " + intent.id() + " before execution");
             }
-        }
-        if (workflow.status() == WorkflowStatus.COMPLETED) {
-            return result(workflow);
         }
 
         while (true) {

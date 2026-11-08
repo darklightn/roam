@@ -76,6 +76,23 @@ class TravelPlanTest extends AcceptanceTestBase {
     }
 
     @Test
+    void executionRequiresExplicitEmployeeSelectionAndNeverBooksAutomatically() {
+        WorkflowService.WorkflowPreparation preparation =
+                prepareAndAssertApproved("session-no-selection", sampleTrip(), flight("flight-1"));
+
+        assertThatThrownBy(() -> workflow.execute(preparation.workflowId(), employee))
+                .isInstanceOf(RoamException.class)
+                .hasMessageContaining("select");
+        assertThat(store.orders()).isEmpty();
+
+        var convenience = workflow.handle(
+                pkg("session-convenience", sampleTrip(), flight("flight-1")), employee);
+        assertThat(convenience.workflowStatus().name()).isEqualTo("IN_PROGRESS");
+        assertThat(convenience.summary()).contains("Select");
+        assertThat(store.orders()).isEmpty();
+    }
+
+    @Test
     void selectedPlanIsReadOnlyAndNewPlanningInputCreatesANewVersion() {
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-version", sampleTrip(), flight("flight-1"));
