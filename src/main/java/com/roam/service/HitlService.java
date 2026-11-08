@@ -103,6 +103,12 @@ public class HitlService {
             String reviewId, Actor administrator, Decision decision, String reason) {
         access.requireAdministrator(administrator);
         HitlReview review = find(reviewId);
+        if (review.claimedBy() != null && !review.claimedBy().equals(administrator.userId())) {
+            throw RoamException.forbidden("another Administrator owns this review");
+        }
+        if (review.status() != ReviewStatus.CLAIMED) {
+            throw RoamException.conflict("claim the review before deciding");
+        }
         if (reason == null || reason.isBlank()) {
             throw RoamException.invalid("a decision reason is required");
         }

@@ -58,7 +58,6 @@ class BudgetExceptionTest extends AcceptanceTestBase {
 
         HitlReview review = budgetReview(order.id());
         hitl.claim(review.id(), admin);
-        String hotelOrderId = null;
         hitl.decide(review.id(), admin, Decision.APPROVED, "Client escalation; allow this fare");
 
         assertThat(order.state().name()).isEqualTo("SUBMITTED");
@@ -72,7 +71,6 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         assertThat(store.auditEvents())
                 .anyMatch(event -> event.action().equals("HITL_DECISION")
                         && event.detail().contains("bookingOrder=" + order.id()));
-        assertThat(hotelOrderId).isNull();
     }
 
     @Test
@@ -119,7 +117,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
 
     @Test
     void approvalOfOneOrderDoesNotResumeItsSiblingOrder() {
-        budget.setCeiling("emp-1", Money.cny("500"));
+        budget.setCeiling("emp-1", Money.cny("300"));
         WorkflowService.WorkflowPreparation preparation = prepareAndAssertApproved(
                 "session-budget-sibling", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
         workflow.execute(preparation.workflowId(), employee);

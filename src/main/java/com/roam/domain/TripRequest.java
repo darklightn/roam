@@ -144,7 +144,8 @@ public final class TripRequest {
         return (status == TripRequestStatus.APPROVED
                         || status == TripRequestStatus.EXECUTION_IN_PROGRESS
                         || status == TripRequestStatus.PARTIALLY_FULFILLED
-                        || status == TripRequestStatus.FULFILLED)
+                        || status == TripRequestStatus.FULFILLED
+                        || status == TripRequestStatus.FAILED)
                 && approvalRecords.stream().anyMatch(record -> record.version() == current);
     }
 
