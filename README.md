@@ -8,8 +8,8 @@ human decisions, recovery, and audit review.
 
 - Trip Request completeness, suggestions (never applied silently), automatic approval, rejected
   resubmission, Administrator review, version locking, and immutable history (#12).
-- Versioned four-view Travel Plan, explainable overall-best scoring, explicit option/quote selection,
-  and quote revalidation before booking (#13).
+- Versioned four-view Travel Plan, explainable overall-best scoring, explicit option/quote selection
+  (required before execution), and quote revalidation before booking (#13).
 - Flight, hotel, and train Booking Orders through deterministic Tuniu fixtures; local `Pending →
   Submitted` transitions, a hard Budget Ceiling check, and at most three supplier calls per operation
   (#14).
@@ -48,7 +48,10 @@ slice. Key endpoints:
 | `GET` | `/api/trip-requests/{id}/plan` | Versioned Travel Plan |
 | `POST` | `/api/plans/{id}/selection` | Select an option and its quote |
 | `POST` | `/api/orders/{id}/cancel` | Supported cancellation |
+| `POST` | `/api/orders/{id}/changes` | Explicitly unsupported change request |
+| `POST` | `/api/orders/{id}/refunds` | Explicitly unsupported refund request |
 | `POST` | `/api/trip-requests/{id}/reviews` | Request Administrator review |
+| `GET` | `/api/trip-requests/{id}/reviews` | Employee-visible review decisions and reasons |
 | `GET` | `/api/admin/reviews` | Shared review queue |
 | `POST` | `/api/admin/reviews/{id}/claim` | Claim a review |
 | `POST` | `/api/admin/reviews/{id}/decision` | Approve/reject with a reason |
