@@ -51,6 +51,7 @@ public class ApiController {
 
     private final WorkflowService workflow;
     private final TripRequestService tripRequests;
+    private final com.roam.service.AuditService audit;
     private final PlanningService planning;
     private final BookingService booking;
     private final HitlService hitl;
@@ -63,6 +64,7 @@ public class ApiController {
     public ApiController(
             WorkflowService workflow,
             TripRequestService tripRequests,
+            com.roam.service.AuditService audit,
             PlanningService planning,
             BookingService booking,
             HitlService hitl,
@@ -73,6 +75,7 @@ public class ApiController {
             TraceService trace) {
         this.workflow = workflow;
         this.tripRequests = tripRequests;
+        this.audit = audit;
         this.planning = planning;
         this.booking = booking;
         this.hitl = hitl;
@@ -223,6 +226,15 @@ public class ApiController {
     @PostMapping("/supplier/payment-callbacks")
     public CallbackObservation callback(@RequestBody CallbackRequest request) {
         return booking.recordPaymentCallback(request);
+    }
+
+    @GetMapping("/admin/audit/{subjectId}")
+    public List<com.roam.domain.AuditEvent> auditEvents(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-Role") String role,
+            @PathVariable String subjectId) {
+        requireAdmin(actor(userId, role));
+        return audit.forSubject(actor(userId, role), subjectId);
     }
 
     @GetMapping("/admin/metrics")

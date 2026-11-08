@@ -1,6 +1,7 @@
 package com.roam.service;
 
 import com.roam.domain.Actor;
+import com.roam.domain.BookingOrder;
 import com.roam.domain.BookingResult;
 import com.roam.domain.BookingOrderState;
 import com.roam.domain.FailureReason;
@@ -201,6 +202,10 @@ public class WorkflowService {
             return;
         }
         intent.markOrder(bookingResult.orderId());
+        BookingOrder order = store.orders().get(bookingResult.orderId());
+        if (order != null) {
+            order.claimByWorkflow(workflow.id());
+        }
         if (bookingResult.state() == BookingOrderState.SUBMITTED) {
             intent.markCompleted(bookingResult.supplierOrderId());
             audit.append(actor, "TASK_COMPLETED", "IntentTask", intent.taskId(),
