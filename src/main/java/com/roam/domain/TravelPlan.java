@@ -93,27 +93,27 @@ public final class TravelPlan {
         return views.get(type);
     }
 
-    public String selectedOptionId() {
+    public synchronized String selectedOptionId() {
         return selectedOptionId;
     }
 
-    public String selectedQuoteId() {
+    public synchronized String selectedQuoteId() {
         return selectedQuoteId;
     }
 
-    public boolean isSelected() {
+    public synchronized boolean isSelected() {
         return selectedOptionId != null || !selectedOptionsByIntent.isEmpty();
     }
 
-    public String selectedOptionForIntent(String intentId) {
+    public synchronized String selectedOptionForIntent(String intentId) {
         return selectedOptionsByIntent.get(intentId);
     }
 
-    public boolean isSuperseded() {
+    public synchronized boolean isSuperseded() {
         return superseded;
     }
 
-    public boolean isReadOnly() {
+    public synchronized boolean isReadOnly() {
         return isSelected() || superseded;
     }
 
@@ -125,7 +125,7 @@ public final class TravelPlan {
     }
 
     /** Explicit employee selection. The option and its quote must belong to this plan. */
-    public void select(String optionId, String quoteId) {
+    public synchronized void select(String optionId, String quoteId) {
         if (superseded) {
             throw new IllegalStateException("a superseded Travel Plan cannot be selected");
         }
@@ -144,7 +144,7 @@ public final class TravelPlan {
     }
 
     /** Selects the option for one intent. Multiple intents keep independent selections. */
-    public void selectForIntent(String intentId, String optionId, String quoteId) {
+    public synchronized void selectForIntent(String intentId, String optionId, String quoteId) {
         if (superseded) {
             throw new IllegalStateException("a superseded Travel Plan cannot be selected");
         }
@@ -165,11 +165,11 @@ public final class TravelPlan {
         }
     }
 
-    public void markSuperseded() {
+    public synchronized void markSuperseded() {
         this.superseded = true;
     }
 
-    public boolean matchesSelected(String optionId, String quoteId) {
+    public synchronized boolean matchesSelected(String optionId, String quoteId) {
         return isSelected()
                 && selectedOptionId.equals(optionId)
                 && selectedQuoteId.equals(quoteId);

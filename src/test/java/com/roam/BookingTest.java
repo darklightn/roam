@@ -34,7 +34,7 @@ class BookingTest extends AcceptanceTestBase {
     void flightAndHotelOrdersAreSubmittedWithSupplierIdentifiersAndRedactedLinks() {
         var result = run("session-happy", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
 
-        assertThat(result.workflowStatus().name()).isEqualTo("COMPLETED");
+        assertThat(result.workflowStatus().name()).as(result.summary()).isEqualTo("COMPLETED");
         assertThat(result.tripRequestStatus()).isEqualTo(TripRequestStatus.FULFILLED);
         assertThat(result.intents()).hasSize(2);
         assertThat(result.intents()).allMatch(intent -> intent.status().name().equals("COMPLETED"));
