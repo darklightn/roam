@@ -9,7 +9,6 @@ import com.roam.domain.OperationType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -212,9 +211,5 @@ public class TuniuFixtureAdapter implements SupplierAdapter {
             }
         }
         return references;
-    }
-
-    static Money money(String value) {
-        return new Money(new BigDecimal(value), "CNY");
     }
 }

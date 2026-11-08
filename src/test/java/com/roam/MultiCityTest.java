@@ -12,7 +12,6 @@ import com.roam.domain.TripRequestStatus;
 import com.roam.domain.TripStop;
 import com.roam.domain.WorkflowResult;
 import com.roam.service.RoamException;
-import com.roam.supplier.SupplierAdapter;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;

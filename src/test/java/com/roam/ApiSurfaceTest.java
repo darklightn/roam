@@ -52,17 +52,48 @@ class ApiSurfaceTest extends AcceptanceTestBase {
         return objectMapper.writeValueAsString(body);
     }
 
-    @Test
-    void httpSurfaceRedactsIdentityPaymentLinksAndEnforcesRoleAccess() throws Exception {
-        String body = intentPackageBody("session-api");
-        String response = mockMvc.perform(post("/api/intent-packages")
+    private JsonNode executeViaHttp(String sessionId) throws Exception {
+        String body = intentPackageBody(sessionId);
+        String prepared = mockMvc.perform(post("/api/intent-packages/prepare")
                         .header("X-User-Id", "emp-1")
                         .header("X-Role", "EMPLOYEE")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        JsonNode result = objectMapper.readTree(response);
+        JsonNode preparation = objectMapper.readTree(prepared);
+        String planId = preparation.get("planId").asText();
+        String workflowId = preparation.get("workflowId").asText();
+
+        String planJson = mockMvc.perform(get("/api/trip-requests/{id}/plan",
+                        preparation.get("tripRequestId").asText())
+                        .header("X-User-Id", "emp-1")
+                        .header("X-Role", "EMPLOYEE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode option = objectMapper.readTree(planJson).get("options").get(0);
+        String selection = objectMapper.writeValueAsString(Map.of(
+                "intentId", "flight-1",
+                "optionId", option.get("id").asText(),
+                "quoteId", option.get("quoteId").asText()));
+        mockMvc.perform(post("/api/plans/{id}/selection", planId)
+                        .header("X-User-Id", "emp-1")
+                        .header("X-Role", "EMPLOYEE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(selection))
+                .andExpect(status().isOk());
+
+        String executed = mockMvc.perform(post("/api/workflows/{id}/execute", workflowId)
+                        .header("X-User-Id", "emp-1")
+                        .header("X-Role", "EMPLOYEE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(executed);
+    }
+
+    @Test
+    void httpSurfaceRedactsIdentityPaymentLinksAndEnforcesRoleAccess() throws Exception {
+        JsonNode result = executeViaHttp("session-api");
         String tripId = result.get("tripRequestId").asText();
         assertThat(result.get("workflowStatus").asText()).isEqualTo("COMPLETED");
 
@@ -112,13 +143,7 @@ class ApiSurfaceTest extends AcceptanceTestBase {
 
     @Test
     void callbackEndpointValidatesQuietlyAndDoesNotChangeOrderState() throws Exception {
-        String body = intentPackageBody("session-api-callback");
-        mockMvc.perform(post("/api/intent-packages")
-                        .header("X-User-Id", "emp-1")
-                        .header("X-Role", "EMPLOYEE")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk());
+        executeViaHttp("session-api-callback");
         BookingOrder order = store.orders().values().iterator().next();
         String callbackBody = objectMapper.writeValueAsString(Map.of(
                 "callbackId", "cb-api",

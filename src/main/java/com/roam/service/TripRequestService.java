@@ -180,10 +180,6 @@ public class TripRequestService {
         return trip;
     }
 
-    public HitlService getHitl() {
-        return hitl;
-    }
-
     public com.roam.domain.HitlReview requestReview(String tripRequestId, Actor actor) {
         TripRequest trip = get(tripRequestId, actor);
         access.requireEmployeeOwnsTripForMutation(actor, trip);

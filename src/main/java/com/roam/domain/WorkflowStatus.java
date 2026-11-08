@@ -7,5 +7,6 @@ public enum WorkflowStatus {
     PARTIALLY_FAILED,
     COMPLETED,
     FAILED,
+    CANCELLED,
     TAKEN_OVER
 }

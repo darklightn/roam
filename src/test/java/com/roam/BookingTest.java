@@ -124,6 +124,7 @@ class BookingTest extends AcceptanceTestBase {
         assertThat(result.state().name()).isEqualTo("PENDING");
         assertThat(result.duplicateRiskWarning()).isTrue();
         assertThat(result.failure().type().name()).isEqualTo("UNKNOWN_EXTERNAL_OUTCOME");
+        assertThat(result.duplicateRiskWarning()).isTrue();
         assertThat(adapter.callCount(order.id(), OperationType.BOOK)).isEqualTo(3);
         assertThat(metrics.snapshot().unknownExternalOutcomes()).isGreaterThan(0);
         assertThat(store.auditEvents())

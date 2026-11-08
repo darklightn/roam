@@ -11,7 +11,6 @@ import com.roam.domain.CallbackRequest;
 import com.roam.domain.CallbackStatus;
 import com.roam.domain.FailureReason;
 import com.roam.domain.FailureType;
-import com.roam.domain.HitlReview;
 import com.roam.domain.IntentType;
 import com.roam.domain.ItineraryOption;
 import com.roam.domain.Money;
@@ -19,6 +18,7 @@ import com.roam.domain.OperationType;
 import com.roam.domain.Quote;
 import com.roam.domain.TravelPlan;
 import com.roam.domain.TripRequest;
+import com.roam.domain.TripRequestStatus;
 import com.roam.supplier.SupplierAdapter;
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -124,7 +124,7 @@ public class BookingService {
     private BookingResult submit(String orderId, Actor actor, boolean budgetExceptionApproved) {
         BookingOrder order = requireOrder(orderId);
         TripRequest trip = requireTrip(order.tripRequestId());
-        access.requireEmployeeOwnsTrip(actor, trip);
+        access.requireEmployeeOwnsTripForMutation(actor, trip);
         if (order.state() != BookingOrderState.PENDING) {
             throw RoamException.conflict("only a Pending Booking Order can be submitted");
         }
@@ -315,7 +315,8 @@ public class BookingService {
         }
         audit.append(administrator, "BUDGET_EXCEPTION_RESUME", "BookingOrder", order.id(),
                 "state=" + order.state(), "approved exception applies only to this order");
-        return submit(orderId, administrator, true);
+        TripRequest trip = requireTrip(order.tripRequestId());
+        return submit(orderId, Actor.employee(trip.employeeId()), true);
     }
 
     public BookingResult cancel(String orderId, Actor actor) {
@@ -377,6 +378,7 @@ public class BookingService {
                             "state=CANCELLED;alreadyCancelled=" + result.alreadyCancelled()
                                     + ";call=" + call,
                             "explicit supplier confirmation");
+                    refreshAfterCancellation(order, actor);
                     return new BookingResult(order.id(), order.state(), order.supplierOrderId(),
                             order.paymentLinkReference(), order.confirmationReference(),
                             order.supplierReferences(), null, false, call);
@@ -503,6 +505,29 @@ public class BookingService {
         return observation;
     }
 
+    /** Change and refund execution are outside the MVP and never change order state. */
+    public BookingResult requestUnsupportedOperation(String orderId, String operation, Actor actor) {
+        if (!"CHANGE".equals(operation) && !"REFUND".equals(operation)) {
+            throw RoamException.invalid("unsupported operation type " + operation);
+        }
+        BookingOrder order = requireOrder(orderId);
+        TripRequest trip = requireTrip(order.tripRequestId());
+        access.requireEmployeeOwnsTripForMutation(actor, trip);
+        FailureReason failure = new FailureReason(
+                FailureType.UNSUPPORTED,
+                operation.toLowerCase() + " execution is not supported in the MVP; handle it manually or contact HR",
+                "TUNIU_UNSUPPORTED",
+                clock.instant(),
+                null);
+        order.recordFailure(failure, clock.instant());
+        audit.append(actor, "UNSUPPORTED_OPERATION_REQUESTED", "BookingOrder", order.id(),
+                "operation=" + operation + ";state=" + order.state() + ";supplierCalls=0",
+                failure.reason());
+        return new BookingResult(order.id(), order.state(), order.supplierOrderId(),
+                order.paymentLinkReference(), order.confirmationReference(),
+                order.supplierReferences(), failure, false, 0);
+    }
+
     public BookingOrder order(String orderId, Actor actor) {
         BookingOrder order = requireOrder(orderId);
         TripRequest trip = requireTrip(order.tripRequestId());
@@ -521,6 +546,37 @@ public class BookingService {
             }
         });
         return Map.copyOf(references);
+    }
+
+    private void refreshAfterCancellation(BookingOrder order, Actor actor) {
+        if (order.claimedByWorkflow() == null) {
+            return;
+        }
+        com.roam.domain.WorkflowInstance workflow =
+                store.workflows().get(order.claimedByWorkflow());
+        if (workflow == null) {
+            return;
+        }
+        com.roam.domain.IntentRecord intent = workflow.intent(order.intentId());
+        intent.markStatus(com.roam.domain.IntentStatus.CANCELLED, "order cancelled");
+        TripRequest trip = requireTrip(order.tripRequestId());
+        boolean allCancelled = workflow.intents().stream()
+                .allMatch(item -> item.status() == com.roam.domain.IntentStatus.CANCELLED);
+        boolean anyCompleted = workflow.anyCompleted();
+        if (allCancelled) {
+            workflow.setStatus(com.roam.domain.WorkflowStatus.CANCELLED);
+            trip.markExecution(TripRequestStatus.CANCELLED);
+        } else if (anyCompleted) {
+            workflow.setStatus(com.roam.domain.WorkflowStatus.PARTIALLY_COMPLETED);
+            trip.markExecution(TripRequestStatus.PARTIALLY_FULFILLED);
+        } else {
+            workflow.setStatus(com.roam.domain.WorkflowStatus.FAILED);
+            trip.markExecution(TripRequestStatus.FAILED);
+        }
+        workflow.setSummary("cancellation recorded for order " + order.id());
+        audit.append(actor, "WORKFLOW_STATUS", "Workflow", workflow.id(),
+                "status=" + workflow.status() + ";tripStatus=" + trip.status(),
+                "cancellation projected without compensating sibling orders");
     }
 
     private BookingOrder findOrderBySupplierId(String supplierOrderId) {

@@ -5,6 +5,10 @@ import com.roam.domain.AuditEvent;
 import com.roam.domain.BookingOrder;
 import com.roam.domain.BookingOrderState;
 import com.roam.domain.WorkflowInstance;
+import com.roam.domain.WorkflowStatus;
+import com.roam.domain.IntentStatus;
+import com.roam.domain.TripRequest;
+import com.roam.domain.TripRequestStatus;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -68,13 +72,25 @@ public class RecoveryService {
                 order.markSubmitted(
                         confirmedSupplierOrderId, order.supplierReferences(),
                         order.paymentLinkReference(), order.confirmationReference(), clock.instant());
-                store.workflows().values().stream()
-                        .filter(workflow -> workflow.id().equals(order.claimedByWorkflow()))
-                        .forEach(workflow -> {
-                            var intent = workflow.intent(order.intentId());
-                            intent.markCompleted(confirmedSupplierOrderId);
-                            workflow.setSummary("recovered: order " + orderId + " confirmed");
-                        });
+                WorkflowInstance workflow = order.claimedByWorkflow() == null
+                        ? null : store.workflows().get(order.claimedByWorkflow());
+                if (workflow != null) {
+                    var intent = workflow.intent(order.intentId());
+                    intent.markCompleted(confirmedSupplierOrderId);
+                    TripRequest trip = store.trips().get(order.tripRequestId());
+                    if (workflow.allCompleted()) {
+                        workflow.setStatus(WorkflowStatus.COMPLETED);
+                        if (trip != null) {
+                            trip.markExecution(TripRequestStatus.FULFILLED);
+                        }
+                    } else if (workflow.anyCompleted()) {
+                        workflow.setStatus(WorkflowStatus.PARTIALLY_COMPLETED);
+                        if (trip != null) {
+                            trip.markExecution(TripRequestStatus.PARTIALLY_FULFILLED);
+                        }
+                    }
+                    workflow.setSummary("recovered: order " + orderId + " confirmed");
+                }
                 audit.append(administrator, "RECOVERY_SUPPLIER_CONFIRMATION", "BookingOrder", order.id(),
                         "previousState=" + before + ";newState=" + order.state()
                                 + ";supplierOrderId=" + confirmedSupplierOrderId,

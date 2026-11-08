@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.roam.domain.Actor;
 import com.roam.domain.IntentPackage;
+import com.roam.domain.ItineraryOption;
+import com.roam.domain.TravelPlan;
+import com.roam.domain.WorkflowResult;
 import com.roam.domain.IntentRequest;
 import com.roam.domain.IntentType;
 import com.roam.domain.TripRequestData;
@@ -115,8 +118,49 @@ public abstract class AcceptanceTestBase {
         return preparation;
     }
 
-    protected com.roam.domain.WorkflowResult run(
+    protected WorkflowResult run(
             String sessionId, TripRequestData data, IntentRequest... intents) {
-        return workflow.handle(pkg(sessionId, data, intents), employee);
+        WorkflowService.WorkflowPreparation preparation =
+                workflow.prepare(pkg(sessionId, data, intents), employee);
+        if (preparation.planId() == null) {
+            return preparation.result();
+        }
+        return selectAndExecute(preparation, employee);
+    }
+
+    /** Test helper that performs the explicit employee selection required before execution. */
+    protected WorkflowResult selectAndExecute(
+            WorkflowService.WorkflowPreparation preparation, Actor actor) {
+        selectDefaults(preparation, actor);
+        return workflow.execute(preparation.workflowId(), actor);
+    }
+
+    protected void selectDefaults(WorkflowService.WorkflowPreparation preparation, Actor actor) {
+        TravelPlan plan = planning.get(preparation.planId(), actor);
+        var workflowInstance = workflow.workflow(preparation.workflowId());
+        for (IntentRequest request : workflowInstance.requests()) {
+            String selectedForIntent = plan.selectedOptionForIntent(request.id());
+            if (selectedForIntent != null) {
+                continue;
+            }
+            if (plan.selectedOptionId() != null) {
+                ItineraryOption selected = plan.option(plan.selectedOptionId());
+                if (selected.type() == request.type()) {
+                    continue;
+                }
+            }
+            java.util.List<String> preferred = plan.view(
+                    com.roam.domain.PlanViewType.OVERALL_BEST).optionIds();
+            ItineraryOption option = plan.options().stream()
+                    .filter(candidate -> candidate.id().startsWith(request.id() + ":"))
+                    .sorted(java.util.Comparator.comparingInt(candidate -> {
+                        int index = preferred.indexOf(candidate.id());
+                        return index < 0 ? Integer.MAX_VALUE : index;
+                    }))
+                    .findFirst()
+                    .orElseThrow();
+            planning.selectForIntent(
+                    plan.id(), request.id(), option.id(), option.quote().id(), actor);
+        }
     }
 }

@@ -79,6 +79,13 @@ public class WorkflowService {
         if (preparation.planId() == null) {
             return preparation.result();
         }
+        TravelPlan plan = planning.latest(preparation.tripRequestId(), actor);
+        WorkflowInstance workflow = requireWorkflow(preparation.workflowId());
+        if (!allIntentsSelected(plan, workflow)) {
+            workflow.setSummary(
+                    "Select an Itinerary Option and its Quote for every intent before execution.");
+            return result(workflow);
+        }
         return execute(preparation.workflowId(), actor);
     }
 
@@ -129,6 +136,12 @@ public class WorkflowService {
             throw RoamException.conflict("workflow execution requires an approved Trip Request");
         }
         TravelPlan plan = planning.latest(trip.id(), actor);
+        for (IntentRecord intent : workflow.intents()) {
+            if (selectedOptionFor(plan, workflow.request(intent.id())) == null) {
+                throw RoamException.conflict(
+                        "select an option and quote for intent " + intent.id() + " before execution");
+            }
+        }
         if (workflow.status() == WorkflowStatus.COMPLETED) {
             return result(workflow);
         }
@@ -182,7 +195,11 @@ public class WorkflowService {
     private void executeIntent(
             WorkflowInstance workflow, TravelPlan plan, IntentRecord intent, Actor actor) {
         IntentRequest request = workflow.request(intent.id());
-        ItineraryOption option = selectOption(workflow, plan, request, actor);
+        ItineraryOption option = selectedOptionFor(plan, request);
+        if (option == null) {
+            throw RoamException.conflict(
+                    "select an option and quote for intent " + request.id());
+        }
         audit.append(actor, "TASK_STARTED", "IntentTask", intent.taskId(),
                 "intent=" + intent.id() + ";orderOption=" + option.id()
                         + ";session=" + workflow.sessionId(),
@@ -238,8 +255,7 @@ public class WorkflowService {
         }
     }
 
-    private ItineraryOption selectOption(
-            WorkflowInstance workflow, TravelPlan plan, IntentRequest request, Actor actor) {
+    private ItineraryOption selectedOptionFor(TravelPlan plan, IntentRequest request) {
         String selectedForIntent = plan.selectedOptionForIntent(request.id());
         if (selectedForIntent != null) {
             return plan.option(selectedForIntent);
@@ -250,20 +266,12 @@ public class WorkflowService {
                 return selected;
             }
         }
-        List<String> preferred = plan.view(PlanViewType.OVERALL_BEST).optionIds();
-        List<ItineraryOption> forIntent = plan.options().stream()
-                .filter(option -> option.id().startsWith(request.id() + ":"))
-                .sorted(Comparator.comparingInt(option -> {
-                    int index = preferred.indexOf(option.id());
-                    return index < 0 ? Integer.MAX_VALUE : index;
-                }))
-                .toList();
-        if (forIntent.isEmpty()) {
-            throw new RoamException("no_offers", "no option available for intent " + request.id(), 409);
-        }
-        ItineraryOption option = forIntent.get(0);
-        planning.selectForIntent(plan.id(), request.id(), option.id(), option.quote().id(), actor);
-        return option;
+        return null;
+    }
+
+    private boolean allIntentsSelected(TravelPlan plan, WorkflowInstance workflow) {
+        return workflow.requests().stream()
+                .allMatch(request -> selectedOptionFor(plan, request) != null);
     }
 
     private boolean dependencyCompleted(WorkflowInstance workflow, IntentRecord intent) {
@@ -311,9 +319,14 @@ public class WorkflowService {
                 .max(Comparator.comparingInt(TravelPlan::version))
                 .orElse(null);
         List<IntentResultView> views = workflow.intents().stream()
-                .map(intent -> new IntentResultView(
-                        intent.id(), intent.taskId(), intent.type(), intent.status(),
-                        intent.orderId(), intent.supplierOrderId(), intent.failure()))
+                .map(intent -> {
+                    BookingOrder order = intent.orderId() == null
+                            ? null : store.orders().get(intent.orderId());
+                    return new IntentResultView(
+                            intent.id(), intent.taskId(), intent.type(), intent.status(),
+                            intent.orderId(), intent.supplierOrderId(), intent.failure(),
+                            order != null && order.duplicateRiskWarned());
+                })
                 .toList();
         return new WorkflowResult(
                 workflow.id(),
@@ -373,9 +386,18 @@ public class WorkflowService {
                         + (intent.supplierOrderId() == null ? "" : " " + intent.supplierOrderId())
                         + (intent.failure() == null ? "" : " - " + intent.failure().reason()))
                 .collect(Collectors.joining("; "));
+        boolean duplicateRisk = workflow.intents().stream()
+                .map(IntentRecord::orderId)
+                .filter(java.util.Objects::nonNull)
+                .map(id -> store.orders().get(id))
+                .anyMatch(order -> order != null && order.duplicateRiskWarned());
         String completion = workflow.allCompleted()
                 ? "All required intents completed. Orders are Submitted, not paid or fulfilled."
                 : "Trip is not complete until every required intent completes.";
+        if (duplicateRisk) {
+            completion += " Duplicate-risk warning: a lost supplier response may have created an"
+                    + " undiscoverable supplier-side order.";
+        }
         return completed + " completed, " + waiting + " waiting, " + failed + " failed, "
                 + unknown + " uncertain. " + completion + " " + items;
     }

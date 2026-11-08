@@ -159,7 +159,11 @@ public class HitlService {
     }
 
     public List<HitlReview> reviewsForTrip(String tripRequestId, Actor actor) {
-        access.requireAdministrator(actor);
+        TripRequest trip = store.trips().get(tripRequestId);
+        if (trip == null) {
+            throw RoamException.notFound("TripRequest");
+        }
+        access.requireEmployeeOwnsTrip(actor, trip);
         return store.reviews().values().stream()
                 .filter(review -> review.tripRequestId().equals(tripRequestId))
                 .toList();

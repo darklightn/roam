@@ -32,7 +32,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("500"));
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-pause", sampleTrip(), flight("flight-1"));
-        var result = workflow.execute(preparation.workflowId(), employee);
+        var result = selectAndExecute(preparation, employee);
 
         BookingOrder order = store.orders().values().iterator().next();
         assertThat(order.state().name()).isEqualTo("PENDING");
@@ -51,7 +51,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("500"));
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-approve", sampleTrip(), flight("flight-1"));
-        workflow.execute(preparation.workflowId(), employee);
+        selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
         TripRequest trip = tripRequests.get(preparation.tripRequestId(), employee);
         int approvalsBefore = trip.approvalRecords().size();
@@ -78,7 +78,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("500"));
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-reject", sampleTrip(), flight("flight-1"));
-        workflow.execute(preparation.workflowId(), employee);
+        selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
         TripRequest trip = tripRequests.get(preparation.tripRequestId(), employee);
 
@@ -92,6 +92,12 @@ class BudgetExceptionTest extends AcceptanceTestBase {
                 .isEqualTo("FAILED");
         assertThat(trip.isApprovedForCurrentVersion()).isTrue();
         assertThat(trip.status()).isEqualTo(TripRequestStatus.FAILED);
+        var visible = hitl.reviewsForTrip(trip.id(), employee);
+        assertThat(visible).hasSize(1);
+        assertThat(visible.get(0).decision()).isEqualTo(Decision.REJECTED);
+        assertThat(visible.get(0).decisionReason()).contains("exceeds policy");
+        assertThatThrownBy(() -> hitl.reviewsForTrip(trip.id(), otherEmployee))
+                .isInstanceOf(RoamException.class);
     }
 
     @Test
@@ -99,7 +105,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("500"));
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-guard", sampleTrip(), flight("flight-1"));
-        workflow.execute(preparation.workflowId(), employee);
+        selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
         HitlReview review = budgetReview(order.id());
         hitl.claim(review.id(), admin);
@@ -120,7 +126,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("300"));
         WorkflowService.WorkflowPreparation preparation = prepareAndAssertApproved(
                 "session-budget-sibling", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
-        workflow.execute(preparation.workflowId(), employee);
+        selectAndExecute(preparation, employee);
 
         BookingOrder flightOrder = store.orders().values().stream()
                 .filter(order -> order.type() == com.roam.domain.IntentType.FLIGHT)
@@ -147,7 +153,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("emp-1", Money.cny("500"));
         WorkflowService.WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-remind", sampleTrip(), flight("flight-1"));
-        workflow.execute(preparation.workflowId(), employee);
+        selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
         HitlReview review = budgetReview(order.id());
 
@@ -163,7 +169,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         budget.setCeiling("admin-1", Money.cny("500"));
         Actor self = Actor.employee("admin-1");
         var preparation = workflow.prepare(pkg("session-self", sampleTrip(), flight("flight-1")), self);
-        workflow.execute(preparation.workflowId(), self);
+        selectAndExecute(preparation, self);
         BookingOrder order = store.orders().values().iterator().next();
         HitlReview review = budgetReview(order.id());
 

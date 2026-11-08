@@ -10,7 +10,8 @@ public record IntentResultView(
         IntentStatus status,
         String orderId,
         String supplierOrderId,
-        FailureReason failure) {
+        FailureReason failure,
+        boolean duplicateRiskWarning) {
 
     public IntentResultView {
         Objects.requireNonNull(intentId, "intentId");

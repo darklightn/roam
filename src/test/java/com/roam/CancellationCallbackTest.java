@@ -55,6 +55,10 @@ class CancellationCallbackTest extends AcceptanceTestBase {
                 .anyMatch(event -> event.action().equals("BOOKING_ORDER_CANCELLED"));
         assertThat(audit.verifyIntegrity()).isTrue();
         assertThat(result.tripRequestId()).isNotBlank();
+        assertThat(tripRequests.get(result.tripRequestId(), employee).status().name())
+                .isEqualTo("CANCELLED");
+        assertThat(store.workflows().get(result.workflowId()).status().name())
+                .isEqualTo("CANCELLED");
     }
 
     @Test
@@ -133,7 +137,7 @@ class CancellationCallbackTest extends AcceptanceTestBase {
 
     @Test
     void partialCancellationPreservesSiblingOrdersWithoutCompensation() {
-        run("session-cancel-partial", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
+        WorkflowResult result = run("session-cancel-partial", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
         BookingOrder flightOrder = orderOfType(IntentType.FLIGHT);
         BookingOrder hotelOrder = orderOfType(IntentType.HOTEL);
 
@@ -145,6 +149,10 @@ class CancellationCallbackTest extends AcceptanceTestBase {
         assertThat(store.auditEvents())
                 .anyMatch(event -> event.action().equals("BOOKING_ORDER_CANCELLED")
                         && event.subjectId().equals(flightOrder.id()));
+        assertThat(tripRequests.get(result.tripRequestId(), employee).status().name())
+                .isEqualTo("PARTIALLY_FULFILLED");
+        assertThat(store.workflows().get(result.workflowId()).status().name())
+                .isEqualTo("PARTIALLY_COMPLETED");
     }
 
     @Test
@@ -191,6 +199,24 @@ class CancellationCallbackTest extends AcceptanceTestBase {
         assertThat(store.callbacks().values())
                 .allMatch(observation -> !observation.redactedDetail().contains("li.wei@example.com"));
         assertThat(order.state().name()).isEqualTo("SUBMITTED");
+    }
+
+    @Test
+    void changeAndRefundRequestsAreReportedAsUnsupportedWithoutChangingState() {
+        run("session-unsupported-change", sampleTrip(), flight("flight-1"));
+        BookingOrder order = orderOfType(IntentType.FLIGHT);
+
+        BookingResult change = booking.requestUnsupportedOperation(order.id(), "CHANGE", employee);
+        BookingResult refund = booking.requestUnsupportedOperation(order.id(), "REFUND", employee);
+
+        assertThat(change.state().name()).isEqualTo("SUBMITTED");
+        assertThat(change.failure().type().name()).isEqualTo("UNSUPPORTED");
+        assertThat(refund.state().name()).isEqualTo("SUBMITTED");
+        assertThat(refund.failure().type().name()).isEqualTo("UNSUPPORTED");
+        assertThat(adapter.callCount(order.id(), OperationType.BOOK)).isEqualTo(1);
+        assertThat(order.state().name()).isEqualTo("SUBMITTED");
+        assertThat(store.auditEvents())
+                .anyMatch(event -> event.action().equals("UNSUPPORTED_OPERATION_REQUESTED"));
     }
 
     @Test

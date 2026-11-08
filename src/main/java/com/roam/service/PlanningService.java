@@ -3,7 +3,6 @@ package com.roam.service;
 import com.roam.domain.Actor;
 import com.roam.domain.IntentRequest;
 import com.roam.domain.ItineraryOption;
-import com.roam.domain.Money;
 import com.roam.domain.PlanView;
 import com.roam.domain.PlanViewType;
 import com.roam.domain.Quote;

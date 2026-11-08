@@ -73,10 +73,6 @@ public record TripRequestData(
             if (!oneWay && returnDate() == null) {
                 missing.add("returnDate");
             }
-            if (oneWay && returnDate() == null) {
-                // Explicit one-way is complete without a return date.
-                missing.remove("returnDate");
-            }
         }
         if (!hasTripReason()) {
             missing.add("tripReason");

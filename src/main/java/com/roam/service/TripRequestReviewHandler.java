@@ -7,7 +7,6 @@ import com.roam.domain.HitlReview;
 import com.roam.domain.ReviewType;
 import com.roam.domain.Role;
 import com.roam.domain.TripRequest;
-import java.time.Clock;
 import org.springframework.stereotype.Component;
 
 /** Applies a human Trip Request decision. It never rewrites the reviewed version. */
@@ -17,14 +16,11 @@ public class TripRequestReviewHandler implements ReviewDecisionHandler {
     private final InMemoryStore store;
     private final Ids ids;
     private final AuditService audit;
-    private final Clock clock;
 
-    public TripRequestReviewHandler(
-            InMemoryStore store, Ids ids, AuditService audit, Clock clock) {
+    public TripRequestReviewHandler(InMemoryStore store, Ids ids, AuditService audit) {
         this.store = store;
         this.ids = ids;
         this.audit = audit;
-        this.clock = clock;
     }
 
     @Override

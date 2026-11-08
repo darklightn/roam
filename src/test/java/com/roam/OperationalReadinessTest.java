@@ -8,14 +8,12 @@ import com.roam.domain.BookingOrder;
 import com.roam.domain.CallbackRequest;
 import com.roam.domain.IntentType;
 import com.roam.domain.Money;
-import com.roam.domain.ReviewType;
 import com.roam.domain.TravelAlert;
 import com.roam.domain.WorkflowResult;
 import com.roam.service.RoamException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -169,7 +167,7 @@ class OperationalReadinessTest extends AcceptanceTestBase {
         fixtures.scriptBookingForType(
                 IntentType.FLIGHT, AttemptOutcome.UNKNOWN, AttemptOutcome.UNKNOWN,
                 AttemptOutcome.UNKNOWN);
-        run("session-failure", sampleTrip(), flight("flight-1"));
+        WorkflowResult result = run("session-failure", sampleTrip(), flight("flight-1"));
         BookingOrder order = firstOrder();
 
         assertThat(order.lastFailure()).isNotNull();
@@ -178,6 +176,8 @@ class OperationalReadinessTest extends AcceptanceTestBase {
         assertThat(order.lastFailure().supplierCode()).isEqualTo("TUNIU_TIMEOUT");
         assertThat(order.lastFailure().occurredAt()).isEqualTo(NOW);
         assertThat(order.lastFailure().attemptId()).isNotBlank();
+        assertThat(result.intents().get(0).duplicateRiskWarning()).isTrue();
+        assertThat(result.summary()).contains("Duplicate-risk warning");
         assertThat(store.auditEvents()).anyMatch(event ->
                 event.action().equals("SUPPLIER_BOOKING_RESPONSE")
                         && event.detail().contains("attempt=")

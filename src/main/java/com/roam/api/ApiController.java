@@ -9,8 +9,6 @@ import com.roam.domain.Decision;
 import com.roam.domain.HitlReview;
 import com.roam.domain.IntentPackage;
 import com.roam.domain.IntentRequest;
-import com.roam.domain.ItineraryOption;
-import com.roam.domain.PlanView;
 import com.roam.domain.PlanViewType;
 import com.roam.domain.Role;
 import com.roam.domain.TravelPlan;
@@ -174,6 +172,22 @@ public class ApiController {
                 order.attempts().size());
     }
 
+    @PostMapping("/orders/{orderId}/changes")
+    public BookingResult requestChange(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-Role") String role,
+            @PathVariable String orderId) {
+        return booking.requestUnsupportedOperation(orderId, "CHANGE", actor(userId, role));
+    }
+
+    @PostMapping("/orders/{orderId}/refunds")
+    public BookingResult requestRefund(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-Role") String role,
+            @PathVariable String orderId) {
+        return booking.requestUnsupportedOperation(orderId, "REFUND", actor(userId, role));
+    }
+
     @PostMapping("/orders/{orderId}/cancel")
     public BookingResult cancel(
             @RequestHeader("X-User-Id") String userId,
@@ -188,6 +202,16 @@ public class ApiController {
             @RequestHeader("X-Role") String role,
             @PathVariable String tripRequestId) {
         return reviewView(tripRequests.requestReview(tripRequestId, actor(userId, role)));
+    }
+
+    @GetMapping("/trip-requests/{tripRequestId}/reviews")
+    public List<ReviewView> tripReviews(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-Role") String role,
+            @PathVariable String tripRequestId) {
+        return hitl.reviewsForTrip(tripRequestId, actor(userId, role)).stream()
+                .map(this::reviewView)
+                .toList();
     }
 
     @DeleteMapping("/trip-requests/{tripRequestId}/reviews/current")
