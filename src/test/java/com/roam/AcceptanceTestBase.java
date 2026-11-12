@@ -2,32 +2,33 @@ package com.roam;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.roam.domain.Actor;
-import com.roam.domain.IntentPackage;
-import com.roam.domain.ItineraryOption;
-import com.roam.domain.TravelPlan;
-import com.roam.domain.WorkflowResult;
-import com.roam.domain.IntentRequest;
-import com.roam.domain.IntentType;
-import com.roam.domain.TripRequestData;
-import com.roam.domain.TripStop;
-import com.roam.service.AlertService;
-import com.roam.service.AuditService;
+import com.roam.agent.MasterAgent;
+import com.roam.agent.contract.WorkflowPreparation;
+import com.roam.agent.contract.WorkflowResult;
+import com.roam.domain.plan.ItineraryOption;
+import com.roam.domain.plan.TravelPlan;
+import com.roam.domain.port.SupplierAdapter;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.trip.TripRequestData;
+import com.roam.domain.trip.TripStop;
+import com.roam.domain.workflow.IntentPackage;
+import com.roam.domain.workflow.IntentRequest;
+import com.roam.domain.workflow.IntentType;
+import com.roam.infrastructure.persistence.InMemoryStore;
+import com.roam.infrastructure.supplier.FixtureScript;
+import com.roam.infrastructure.supplier.TuniuFixtureAdapter;
 import com.roam.service.BookingService;
-import com.roam.service.BudgetPolicy;
 import com.roam.service.HitlService;
-import com.roam.service.Ids;
-import com.roam.service.InMemoryStore;
-import com.roam.service.MetricsService;
 import com.roam.service.PlanningService;
 import com.roam.service.RecoveryService;
-import com.roam.service.Redaction;
-import com.roam.service.TraceService;
 import com.roam.service.TripRequestService;
-import com.roam.service.WorkflowService;
-import com.roam.supplier.FixtureScript;
-import com.roam.supplier.SupplierAdapter;
-import com.roam.supplier.TuniuFixtureAdapter;
+import com.roam.service.audit.AuditService;
+import com.roam.service.observability.AlertService;
+import com.roam.service.observability.MetricsService;
+import com.roam.service.observability.TraceService;
+import com.roam.service.policy.BudgetPolicy;
+import com.roam.shared.Ids;
+import com.roam.shared.Redaction;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -59,7 +60,7 @@ public abstract class AcceptanceTestBase {
     @Autowired protected PlanningService planning;
     @Autowired protected BookingService booking;
     @Autowired protected HitlService hitl;
-    @Autowired protected WorkflowService workflow;
+    @Autowired protected MasterAgent masterAgent;
     @Autowired protected RecoveryService recovery;
     @Autowired protected TraceService trace;
 
@@ -109,19 +110,19 @@ public abstract class AcceptanceTestBase {
                 "pkg-" + sessionId, sessionId, "1.0", null, data, List.of(intents));
     }
 
-    protected WorkflowService.WorkflowPreparation prepareAndAssertApproved(
+    protected WorkflowPreparation prepareAndAssertApproved(
             String sessionId, TripRequestData data, IntentRequest... intents) {
-        WorkflowService.WorkflowPreparation preparation =
-                workflow.prepare(pkg(sessionId, data, intents), employee);
+        WorkflowPreparation preparation =
+                masterAgent.prepare(pkg(sessionId, data, intents), employee);
         assertThat(preparation.submissionStatus())
-                .isEqualTo(com.roam.domain.TripRequestStatus.APPROVED);
+                .isEqualTo(com.roam.domain.trip.TripRequestStatus.APPROVED);
         return preparation;
     }
 
     protected WorkflowResult run(
             String sessionId, TripRequestData data, IntentRequest... intents) {
-        WorkflowService.WorkflowPreparation preparation =
-                workflow.prepare(pkg(sessionId, data, intents), employee);
+        WorkflowPreparation preparation =
+                masterAgent.prepare(pkg(sessionId, data, intents), employee);
         if (preparation.planId() == null) {
             return preparation.result();
         }
@@ -130,14 +131,14 @@ public abstract class AcceptanceTestBase {
 
     /** Test helper that performs the explicit employee selection required before execution. */
     protected WorkflowResult selectAndExecute(
-            WorkflowService.WorkflowPreparation preparation, Actor actor) {
+            WorkflowPreparation preparation, Actor actor) {
         selectDefaults(preparation, actor);
-        return workflow.execute(preparation.workflowId(), actor);
+        return masterAgent.execute(preparation.workflowId(), actor);
     }
 
-    protected void selectDefaults(WorkflowService.WorkflowPreparation preparation, Actor actor) {
+    protected void selectDefaults(WorkflowPreparation preparation, Actor actor) {
         TravelPlan plan = planning.get(preparation.planId(), actor);
-        var workflowInstance = workflow.workflow(preparation.workflowId());
+        var workflowInstance = masterAgent.workflow(preparation.workflowId());
         for (IntentRequest request : workflowInstance.requests()) {
             String selectedForIntent = plan.selectedOptionForIntent(request.id());
             if (selectedForIntent != null) {
@@ -150,7 +151,7 @@ public abstract class AcceptanceTestBase {
                 }
             }
             java.util.List<String> preferred = plan.view(
-                    com.roam.domain.PlanViewType.OVERALL_BEST).optionIds();
+                    com.roam.domain.plan.PlanViewType.OVERALL_BEST).optionIds();
             ItineraryOption option = plan.options().stream()
                     .filter(candidate -> candidate.id().startsWith(request.id() + ":"))
                     .sorted(java.util.Comparator.comparingInt(candidate -> {

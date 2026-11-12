@@ -3,14 +3,14 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.AttemptOutcome;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.CallbackRequest;
-import com.roam.domain.IntentType;
-import com.roam.domain.Money;
-import com.roam.domain.TravelAlert;
-import com.roam.domain.WorkflowResult;
-import com.roam.service.RoamException;
+import com.roam.agent.contract.WorkflowResult;
+import com.roam.domain.booking.AttemptOutcome;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.booking.CallbackRequest;
+import com.roam.domain.shared.Money;
+import com.roam.domain.workflow.IntentType;
+import com.roam.service.observability.TravelAlert;
+import com.roam.shared.RoamException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -118,7 +118,7 @@ class OperationalReadinessTest extends AcceptanceTestBase {
         WorkflowResult result = run("session-drill", sampleTrip(), flight("flight-1"));
         BookingOrder order = firstOrder();
         assertThat(order.state().name()).isEqualTo("PENDING");
-        List<com.roam.domain.AuditEvent> before = audit.all(admin);
+        List<com.roam.domain.audit.AuditEvent> before = audit.all(admin);
 
         var report = recovery.runRecoveryDrill(
                 result.workflowId(), order.id(), admin, "P0 recovery drill for uncertain order");
@@ -131,7 +131,7 @@ class OperationalReadinessTest extends AcceptanceTestBase {
                 .isEqualTo("admin-1");
         assertThat(store.workflows().get(result.workflowId()).status().name())
                 .isEqualTo("TAKEN_OVER");
-        List<com.roam.domain.AuditEvent> after = audit.all(admin);
+        List<com.roam.domain.audit.AuditEvent> after = audit.all(admin);
         assertThat(after.subList(0, before.size())).isEqualTo(before);
         assertThat(after).anyMatch(event -> event.action().equals("HUMAN_TAKEOVER"));
         assertThat(after).anyMatch(event -> event.action().equals("RECOVERY_DRILL_COMPLETED"));
@@ -151,7 +151,7 @@ class OperationalReadinessTest extends AcceptanceTestBase {
     @Test
     void auditEventsAreAppendOnlyAndTamperEvident() {
         run("session-audit", sampleTrip(), flight("flight-1"));
-        List<com.roam.domain.AuditEvent> events = store.auditEvents();
+        List<com.roam.domain.audit.AuditEvent> events = store.auditEvents();
 
         assertThatThrownBy(events::clear).isInstanceOf(UnsupportedOperationException.class);
         assertThat(store.auditEvents()).hasSameSizeAs(events);

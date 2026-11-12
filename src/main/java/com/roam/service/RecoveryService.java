@@ -1,14 +1,18 @@
 package com.roam.service;
 
-import com.roam.domain.Actor;
-import com.roam.domain.AuditEvent;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.BookingOrderState;
-import com.roam.domain.WorkflowInstance;
-import com.roam.domain.WorkflowStatus;
-import com.roam.domain.IntentStatus;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestStatus;
+import com.roam.domain.audit.AuditEvent;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.booking.BookingOrderState;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.workflow.WorkflowInstance;
+import com.roam.domain.workflow.WorkflowStatus;
+import com.roam.infrastructure.persistence.InMemoryStore;
+import com.roam.service.audit.AuditService;
+import com.roam.service.security.AccessControl;
+import com.roam.shared.Ids;
+import com.roam.shared.RoamException;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.stereotype.Service;

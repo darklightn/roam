@@ -3,14 +3,14 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.EmployeeProfile;
-import com.roam.domain.IntentPackage;
-import com.roam.domain.SubmissionResult;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestData;
-import com.roam.domain.TripRequestStatus;
-import com.roam.domain.TripStop;
-import com.roam.service.RoamException;
+import com.roam.domain.trip.EmployeeProfile;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestData;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.trip.TripStop;
+import com.roam.domain.workflow.IntentPackage;
+import com.roam.service.dto.SubmissionResult;
+import com.roam.shared.RoamException;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -58,7 +58,7 @@ class TripRequestApprovalTest extends AcceptanceTestBase {
         assertThat(result.status()).isEqualTo(TripRequestStatus.AWAITING_INFO);
         assertThat(result.missingFields()).contains("traveler", "origin", "destination");
         assertThat(result.suggestions())
-                .extracting(com.roam.domain.Suggestion::field)
+                .extracting(com.roam.domain.trip.Suggestion::field)
                 .contains("traveler", "origin", "destination");
         assertThat(trip.currentData().origin()).isNull();
         assertThat(trip.status()).isEqualTo(TripRequestStatus.AWAITING_INFO);
@@ -147,11 +147,11 @@ class TripRequestApprovalTest extends AcceptanceTestBase {
         hitl.claim(reviewId, admin);
         assertThatThrownBy(() -> hitl.claim(reviewId, secondAdmin))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> hitl.decide(reviewId, admin, com.roam.domain.Decision.APPROVED, " "))
+        assertThatThrownBy(() -> hitl.decide(reviewId, admin, com.roam.domain.review.Decision.APPROVED, " "))
                 .isInstanceOf(RoamException.class)
                 .hasMessageContaining("reason");
 
-        hitl.decide(reviewId, admin, com.roam.domain.Decision.APPROVED,
+        hitl.decide(reviewId, admin, com.roam.domain.review.Decision.APPROVED,
                 "Exception approved for the client meeting");
 
         assertThat(trip.status()).isEqualTo(TripRequestStatus.APPROVED);
@@ -178,7 +178,7 @@ class TripRequestApprovalTest extends AcceptanceTestBase {
 
         assertThat(hitl.remindPending()).isEqualTo(1);
         assertThat(hitl.find(reviewId).reminderCount()).isEqualTo(1);
-        assertThat(hitl.find(reviewId).status()).isEqualTo(com.roam.domain.ReviewStatus.UNCLAIMED);
+        assertThat(hitl.find(reviewId).status()).isEqualTo(com.roam.domain.review.ReviewStatus.UNCLAIMED);
         assertThat(trip.status()).isEqualTo(TripRequestStatus.AWAITING_REVIEW);
 
         clock.advanceSeconds(120);

@@ -18,8 +18,8 @@ permissions, redaction, and operational signals.
 - Keep Spring Boot as the service foundation and expose a small HTTP surface.
 - Put durable business and workflow state behind an in-memory store with the same append-only audit
   semantics and guarded transitions a MySQL adapter must preserve. `InMemoryStore` is the seam.
-- Implement `MasterAgent` coordination in `WorkflowService`, child-Agent execution in `BookingAgent`,
-  and bounded, isolated `TaskContext` records. The AgentScope runtime can replace the executor and
+- Implement `MasterAgent` coordination in `agent/MasterAgent`, child-Agent execution in
+  `agent/BookingAgent`, and bounded, isolated `agent/TaskContext` records. The AgentScope runtime can replace the executor and
   model invocation without changing domain rules.
 - Model the supplier boundary as `SupplierAdapter`; `TuniuFixtureAdapter` implements deterministic
   flight, hotel, and train behaviour, including uncertain outcomes and bounded calls.

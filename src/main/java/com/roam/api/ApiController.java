@@ -1,34 +1,45 @@
 package com.roam.api;
 
-import com.roam.domain.Actor;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.BookingResult;
-import com.roam.domain.CallbackObservation;
-import com.roam.domain.CallbackRequest;
-import com.roam.domain.Decision;
-import com.roam.domain.HitlReview;
-import com.roam.domain.IntentPackage;
-import com.roam.domain.IntentRequest;
-import com.roam.domain.PlanViewType;
-import com.roam.domain.Role;
-import com.roam.domain.TravelPlan;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestData;
-import com.roam.domain.WorkflowResult;
-import com.roam.service.AlertService;
+import com.roam.agent.MasterAgent;
+import com.roam.agent.contract.WorkflowPreparation;
+import com.roam.agent.contract.WorkflowResult;
+import com.roam.api.dto.ApprovalView;
+import com.roam.api.dto.DecisionBody;
+import com.roam.api.dto.DrillBody;
+import com.roam.api.dto.IntentPackageBody;
+import com.roam.api.dto.OptionView;
+import com.roam.api.dto.OrderView;
+import com.roam.api.dto.PlanResponse;
+import com.roam.api.dto.ReasonBody;
+import com.roam.api.dto.ResolveBody;
+import com.roam.api.dto.ReviewView;
+import com.roam.api.dto.SelectionBody;
+import com.roam.api.dto.TripRequestView;
+import com.roam.api.dto.ViewResponse;
+import com.roam.api.dto.WorkflowTakeoverView;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.booking.CallbackObservation;
+import com.roam.domain.booking.CallbackRequest;
+import com.roam.domain.plan.PlanViewType;
+import com.roam.domain.plan.TravelPlan;
+import com.roam.domain.review.HitlReview;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.shared.Role;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestData;
+import com.roam.domain.workflow.IntentPackage;
 import com.roam.service.BookingService;
 import com.roam.service.HitlService;
-import com.roam.service.MetricsService;
 import com.roam.service.PlanningService;
 import com.roam.service.RecoveryService;
-import com.roam.service.Redaction;
-import com.roam.service.RoamException;
-import com.roam.service.TraceService;
 import com.roam.service.TripRequestService;
-import com.roam.service.WorkflowService;
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
+import com.roam.service.audit.AuditService;
+import com.roam.service.dto.BookingResult;
+import com.roam.service.observability.AlertService;
+import com.roam.service.observability.MetricsService;
+import com.roam.service.observability.TraceService;
+import com.roam.shared.Redaction;
+import com.roam.shared.RoamException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -47,9 +58,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ApiController {
 
-    private final WorkflowService workflow;
+    private final MasterAgent masterAgent;
     private final TripRequestService tripRequests;
-    private final com.roam.service.AuditService audit;
+    private final AuditService audit;
     private final PlanningService planning;
     private final BookingService booking;
     private final HitlService hitl;
@@ -60,9 +71,9 @@ public class ApiController {
     private final TraceService trace;
 
     public ApiController(
-            WorkflowService workflow,
+            MasterAgent masterAgent,
             TripRequestService tripRequests,
-            com.roam.service.AuditService audit,
+            AuditService audit,
             PlanningService planning,
             BookingService booking,
             HitlService hitl,
@@ -71,7 +82,7 @@ public class ApiController {
             Redaction redaction,
             RecoveryService recovery,
             TraceService trace) {
-        this.workflow = workflow;
+        this.masterAgent = masterAgent;
         this.tripRequests = tripRequests;
         this.audit = audit;
         this.planning = planning;
@@ -90,16 +101,16 @@ public class ApiController {
             @RequestHeader("X-Role") String role,
             @RequestBody IntentPackageBody body) {
         Actor actor = actor(userId, role);
-        return workflow.handle(toPackage(body), actor);
+        return masterAgent.handle(toPackage(body), actor);
     }
 
     @PostMapping("/intent-packages/prepare")
-    public WorkflowService.WorkflowPreparation prepareIntentPackage(
+    public WorkflowPreparation prepareIntentPackage(
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Role") String role,
             @RequestBody IntentPackageBody body) {
         Actor actor = actor(userId, role);
-        return workflow.prepare(toPackage(body), actor);
+        return masterAgent.prepare(toPackage(body), actor);
     }
 
     @PostMapping("/workflows/{workflowId}/execute")
@@ -107,7 +118,7 @@ public class ApiController {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Role") String role,
             @PathVariable String workflowId) {
-        return workflow.execute(workflowId, actor(userId, role));
+        return masterAgent.execute(workflowId, actor(userId, role));
     }
 
     @GetMapping("/workflows/{workflowId}")
@@ -115,7 +126,7 @@ public class ApiController {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Role") String role,
             @PathVariable String workflowId) {
-        return workflow.result(workflowId, actor(userId, role));
+        return masterAgent.result(workflowId, actor(userId, role));
     }
 
     @GetMapping("/trip-requests/{tripRequestId}")
@@ -253,7 +264,7 @@ public class ApiController {
     }
 
     @GetMapping("/admin/audit/{subjectId}")
-    public List<com.roam.domain.AuditEvent> auditEvents(
+    public List<com.roam.domain.audit.AuditEvent> auditEvents(
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Role") String role,
             @PathVariable String subjectId) {
@@ -286,13 +297,13 @@ public class ApiController {
     }
 
     @PostMapping("/admin/workflows/{workflowId}/takeover")
-    public WorkflowServiceTakeover takeover(
+    public WorkflowTakeoverView takeover(
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Role") String role,
             @PathVariable String workflowId,
             @RequestBody ReasonBody body) {
         var instance = recovery.takeOver(workflowId, actor(userId, role), body.reason());
-        return new WorkflowServiceTakeover(
+        return new WorkflowTakeoverView(
                 instance.id(), instance.status().name(), instance.ownerAdministrator(),
                 instance.summary());
     }
@@ -444,87 +455,4 @@ public class ApiController {
                 review.decisionReason(), review.reminderCount());
     }
 
-    public record IntentPackageBody(
-            String packageId,
-            String sessionId,
-            String contractVersion,
-            String tripRequestId,
-            TripRequestData tripRequest,
-            List<IntentRequest> intents) {}
-
-    public record SelectionBody(String intentId, String optionId, String quoteId) {}
-
-    public record DecisionBody(Decision decision, String reason) {}
-
-    public record ReasonBody(String reason) {}
-
-    public record DrillBody(String workflowId, String orderId, String reason) {}
-
-    public record ResolveBody(String reason, String confirmedSupplierOrderId) {}
-
-    public record WorkflowServiceTakeover(
-            String workflowId, String status, String ownerAdministrator, String summary) {}
-
-    public record TripRequestView(
-            String id,
-            String status,
-            int currentVersion,
-            boolean versionLocked,
-            String pendingReviewId,
-            String travelerName,
-            String travelerIdNumber,
-            String origin,
-            List<com.roam.domain.TripStop> stops,
-            boolean oneWay,
-            String tripReason,
-            List<ApprovalView> approvals) {}
-
-    public record ApprovalView(
-            String id, int version, Instant decidedAt, String decidedBy,
-            String role, boolean automatic, String basis) {}
-
-    public record OrderView(
-            String id,
-            String tripRequestId,
-            String intentId,
-            String type,
-            String state,
-            String supplierOrderId,
-            String paymentLinkReference,
-            String confirmationReference,
-            Map<String, String> supplierReferences,
-            String failureType,
-            boolean duplicateRiskWarning,
-            boolean paidObserved,
-            int attempts) {}
-
-    public record ReviewView(
-            String id, String type, String status, String subjectId, String tripRequestId,
-            int tripRequestVersion, String requestedBy, Instant requestedAt, String claimedBy,
-            Instant claimedAt, String decision, String decisionReason, int reminderCount) {}
-
-    public record PlanResponse(
-            String id,
-            String tripRequestId,
-            int version,
-            Instant createdAt,
-            boolean selected,
-            boolean readOnly,
-            boolean superseded,
-            String selectedOptionId,
-            String selectedQuoteId,
-            List<OptionView> options,
-            Map<PlanViewType, ViewResponse> views) {}
-
-    public record OptionView(
-            String id, String type, String description, String origin, String destination,
-            LocalDate startDate, LocalDate endDate, int durationMinutes, int preferenceScore,
-            String quoteId, BigDecimal price, String currency, Instant validUntil,
-            String quoteStatus) {}
-
-    public record ViewResponse(
-            List<String> optionIds,
-            String explanation,
-            Map<String, BigDecimal> scoreDimensions,
-            Map<String, BigDecimal> weights) {}
 }

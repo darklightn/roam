@@ -1,16 +1,23 @@
 package com.roam.service;
 
-import com.roam.domain.Actor;
-import com.roam.domain.ApprovalRecord;
-import com.roam.domain.EmployeeProfile;
-import com.roam.domain.IntentPackage;
-import com.roam.domain.Role;
-import com.roam.domain.SubmissionResult;
-import com.roam.domain.Suggestion;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestData;
-import com.roam.domain.TripRequestStatus;
-import com.roam.domain.TripStop;
+import com.roam.domain.plan.Quote;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.shared.Role;
+import com.roam.domain.trip.ApprovalRecord;
+import com.roam.domain.trip.EmployeeProfile;
+import com.roam.domain.trip.Suggestion;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestData;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.trip.TripStop;
+import com.roam.domain.workflow.IntentPackage;
+import com.roam.infrastructure.persistence.InMemoryStore;
+import com.roam.service.audit.AuditService;
+import com.roam.service.dto.SubmissionResult;
+import com.roam.service.security.AccessControl;
+import com.roam.shared.Ids;
+import com.roam.shared.Redaction;
+import com.roam.shared.RoamException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -180,7 +187,7 @@ public class TripRequestService {
         return trip;
     }
 
-    public com.roam.domain.HitlReview requestReview(String tripRequestId, Actor actor) {
+    public com.roam.domain.review.HitlReview requestReview(String tripRequestId, Actor actor) {
         TripRequest trip = get(tripRequestId, actor);
         access.requireEmployeeOwnsTripForMutation(actor, trip);
         return hitl.requestTripReview(trip, actor);

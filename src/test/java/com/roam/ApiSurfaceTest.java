@@ -7,8 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.roam.domain.BookingOrder;
-import com.roam.service.CallbackSignatures;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.shared.Role;
+import com.roam.infrastructure.supplier.CallbackSignatures;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;

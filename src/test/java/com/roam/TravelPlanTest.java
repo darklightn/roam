@@ -3,17 +3,16 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.IntentType;
-import com.roam.domain.ItineraryOption;
-import com.roam.domain.PlanViewType;
-import com.roam.domain.QuoteStatus;
-import com.roam.domain.TravelPlan;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestStatus;
-import com.roam.service.RoamException;
-import com.roam.service.WorkflowService;
-import com.roam.supplier.SupplierAdapter;
-import java.util.List;
+import com.roam.agent.contract.WorkflowPreparation;
+import com.roam.domain.plan.ItineraryOption;
+import com.roam.domain.plan.PlanViewType;
+import com.roam.domain.plan.QuoteStatus;
+import com.roam.domain.plan.TravelPlan;
+import com.roam.domain.port.SupplierAdapter;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.workflow.IntentType;
+import com.roam.shared.RoamException;
 import org.junit.jupiter.api.Test;
 
 /** Ticket #13: generate and select a four-view Travel Plan. */
@@ -21,7 +20,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void planContainsAllFourViewsWithConcreteOptionsAndOneQuotePerOption() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-plan", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
         TravelPlan plan = planning.get(preparation.planId(), employee);
 
@@ -51,7 +50,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void employeeExplicitlySelectsAnOptionAndItsQuote() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-select", sampleTrip(), flight("flight-1"));
         TravelPlan plan = planning.get(preparation.planId(), employee);
         ItineraryOption option = plan.view(PlanViewType.OVERALL_BEST).optionIds().stream()
@@ -70,22 +69,22 @@ class TravelPlanTest extends AcceptanceTestBase {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only");
 
-        var result = workflow.execute(preparation.workflowId(), employee);
+        var result = masterAgent.execute(preparation.workflowId(), employee);
         assertThat(result.workflowStatus().name()).isEqualTo("COMPLETED");
         assertThat(result.intents()).allMatch(intent -> intent.status().name().equals("COMPLETED"));
     }
 
     @Test
     void executionRequiresExplicitEmployeeSelectionAndNeverBooksAutomatically() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-no-selection", sampleTrip(), flight("flight-1"));
 
-        assertThatThrownBy(() -> workflow.execute(preparation.workflowId(), employee))
+        assertThatThrownBy(() -> masterAgent.execute(preparation.workflowId(), employee))
                 .isInstanceOf(RoamException.class)
                 .hasMessageContaining("select");
         assertThat(store.orders()).isEmpty();
 
-        var convenience = workflow.handle(
+        var convenience = masterAgent.handle(
                 pkg("session-convenience", sampleTrip(), flight("flight-1")), employee);
         assertThat(convenience.workflowStatus().name()).isEqualTo("IN_PROGRESS");
         assertThat(convenience.summary()).contains("Select");
@@ -94,7 +93,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void selectedPlanIsReadOnlyAndNewPlanningInputCreatesANewVersion() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-version", sampleTrip(), flight("flight-1"));
         TravelPlan original = planning.get(preparation.planId(), employee);
         ItineraryOption option = original.options().get(0);
@@ -103,7 +102,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
         TripRequest trip = tripRequests.get(preparation.tripRequestId(), employee);
         TravelPlan next = planning.plan(
-                trip, workflow.workflow(preparation.workflowId()).requests(), employee);
+                trip, masterAgent.workflow(preparation.workflowId()).requests(), employee);
 
         assertThat(next.version()).isEqualTo(2);
         assertThat(original.isSuperseded()).isTrue();
@@ -114,7 +113,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void expiredQuoteIsRevalidatedAndBlocksBooking() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-expired", sampleTrip(), flight("flight-1"));
         TravelPlan plan = planning.get(preparation.planId(), employee);
         ItineraryOption option = plan.options().get(0);
@@ -122,7 +121,7 @@ class TravelPlanTest extends AcceptanceTestBase {
         fixtures.scriptReprice(option.quote().supplierRef(), new SupplierAdapter.QuoteCheck(
                 SupplierAdapter.QuoteCheck.Status.EXPIRED, null, null, "fixture expired"));
 
-        var result = workflow.execute(preparation.workflowId(), employee);
+        var result = masterAgent.execute(preparation.workflowId(), employee);
 
         assertThat(result.workflowStatus().name()).isNotEqualTo("COMPLETED");
         assertThat(result.intents().get(0).status().name()).isEqualTo("FAILED");
@@ -138,18 +137,18 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void changedQuoteCreatesANewVersionAndRequiresReselection() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-changed", sampleTrip(), flight("flight-1"));
         TravelPlan plan = planning.get(preparation.planId(), employee);
         ItineraryOption option = plan.options().get(0);
         planning.selectOption(plan.id(), option.id(), option.quote().id(), employee);
         fixtures.scriptReprice(option.quote().supplierRef(), new SupplierAdapter.QuoteCheck(
                 SupplierAdapter.QuoteCheck.Status.CHANGED,
-                com.roam.domain.Money.cny("1500"),
+                com.roam.domain.shared.Money.cny("1500"),
                 clock.instant().plusSeconds(1800),
                 "fixture price changed"));
 
-        var result = workflow.execute(preparation.workflowId(), employee);
+        var result = masterAgent.execute(preparation.workflowId(), employee);
 
         var order = store.orders().values().iterator().next();
         assertThat(order.state().name()).isEqualTo("PENDING");
@@ -165,7 +164,7 @@ class TravelPlanTest extends AcceptanceTestBase {
 
     @Test
     void planIsVisibleOnlyToItsOwnerAndAdministrators() {
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-access", sampleTrip(), flight("flight-1"));
 
         assertThatThrownBy(() -> planning.get(preparation.planId(), otherEmployee))

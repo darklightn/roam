@@ -1,25 +1,34 @@
 package com.roam.service;
 
-import com.roam.domain.Actor;
-import com.roam.domain.AttemptOutcome;
-import com.roam.domain.BookingAttempt;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.BookingOrderState;
-import com.roam.domain.BookingResult;
-import com.roam.domain.CallbackObservation;
-import com.roam.domain.CallbackRequest;
-import com.roam.domain.CallbackStatus;
-import com.roam.domain.FailureReason;
-import com.roam.domain.FailureType;
-import com.roam.domain.IntentType;
-import com.roam.domain.ItineraryOption;
-import com.roam.domain.Money;
-import com.roam.domain.OperationType;
-import com.roam.domain.Quote;
-import com.roam.domain.TravelPlan;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestStatus;
-import com.roam.supplier.SupplierAdapter;
+import com.roam.domain.booking.AttemptOutcome;
+import com.roam.domain.booking.BookingAttempt;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.booking.BookingOrderState;
+import com.roam.domain.booking.CallbackObservation;
+import com.roam.domain.booking.CallbackRequest;
+import com.roam.domain.booking.CallbackStatus;
+import com.roam.domain.booking.OperationType;
+import com.roam.domain.plan.ItineraryOption;
+import com.roam.domain.plan.Quote;
+import com.roam.domain.plan.TravelPlan;
+import com.roam.domain.port.SupplierAdapter;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.shared.FailureReason;
+import com.roam.domain.shared.FailureType;
+import com.roam.domain.shared.Money;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.workflow.IntentType;
+import com.roam.infrastructure.persistence.InMemoryStore;
+import com.roam.infrastructure.supplier.CallbackSignatures;
+import com.roam.service.audit.AuditService;
+import com.roam.service.dto.BookingResult;
+import com.roam.service.observability.MetricsService;
+import com.roam.service.policy.BudgetPolicy;
+import com.roam.service.security.AccessControl;
+import com.roam.shared.Ids;
+import com.roam.shared.Redaction;
+import com.roam.shared.RoamException;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -307,9 +316,9 @@ public class BookingService {
         access.requireAdministrator(administrator);
         BookingOrder order = requireOrder(orderId);
         boolean approved = store.reviews().values().stream()
-                .anyMatch(review -> review.type() == com.roam.domain.ReviewType.BUDGET_EXCEPTION
+                .anyMatch(review -> review.type() == com.roam.domain.review.ReviewType.BUDGET_EXCEPTION
                         && review.subjectId().equals(orderId)
-                        && review.decision() == com.roam.domain.Decision.APPROVED);
+                        && review.decision() == com.roam.domain.review.Decision.APPROVED);
         if (!approved) {
             throw RoamException.conflict("no approved budget exception for this order");
         }
@@ -552,25 +561,25 @@ public class BookingService {
         if (order.claimedByWorkflow() == null) {
             return;
         }
-        com.roam.domain.WorkflowInstance workflow =
+        com.roam.domain.workflow.WorkflowInstance workflow =
                 store.workflows().get(order.claimedByWorkflow());
         if (workflow == null) {
             return;
         }
-        com.roam.domain.IntentRecord intent = workflow.intent(order.intentId());
-        intent.markStatus(com.roam.domain.IntentStatus.CANCELLED, "order cancelled");
+        com.roam.domain.workflow.IntentRecord intent = workflow.intent(order.intentId());
+        intent.markStatus(com.roam.domain.workflow.IntentStatus.CANCELLED, "order cancelled");
         TripRequest trip = requireTrip(order.tripRequestId());
         boolean allCancelled = workflow.intents().stream()
-                .allMatch(item -> item.status() == com.roam.domain.IntentStatus.CANCELLED);
+                .allMatch(item -> item.status() == com.roam.domain.workflow.IntentStatus.CANCELLED);
         boolean anyCompleted = workflow.anyCompleted();
         if (allCancelled) {
-            workflow.setStatus(com.roam.domain.WorkflowStatus.CANCELLED);
+            workflow.setStatus(com.roam.domain.workflow.WorkflowStatus.CANCELLED);
             trip.markExecution(TripRequestStatus.CANCELLED);
         } else if (anyCompleted) {
-            workflow.setStatus(com.roam.domain.WorkflowStatus.PARTIALLY_COMPLETED);
+            workflow.setStatus(com.roam.domain.workflow.WorkflowStatus.PARTIALLY_COMPLETED);
             trip.markExecution(TripRequestStatus.PARTIALLY_FULFILLED);
         } else {
-            workflow.setStatus(com.roam.domain.WorkflowStatus.FAILED);
+            workflow.setStatus(com.roam.domain.workflow.WorkflowStatus.FAILED);
             trip.markExecution(TripRequestStatus.FAILED);
         }
         workflow.setSummary("cancellation recorded for order " + order.id());

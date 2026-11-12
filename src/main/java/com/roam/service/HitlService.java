@@ -1,12 +1,18 @@
 package com.roam.service;
 
-import com.roam.domain.Actor;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.Decision;
-import com.roam.domain.HitlReview;
-import com.roam.domain.ReviewStatus;
-import com.roam.domain.ReviewType;
-import com.roam.domain.TripRequest;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.review.Decision;
+import com.roam.domain.review.HitlReview;
+import com.roam.domain.review.ReviewStatus;
+import com.roam.domain.review.ReviewType;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.trip.TripRequest;
+import com.roam.infrastructure.persistence.InMemoryStore;
+import com.roam.service.audit.AuditService;
+import com.roam.service.review.ReviewDecisionHandler;
+import com.roam.service.security.AccessControl;
+import com.roam.shared.Ids;
+import com.roam.shared.RoamException;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -44,7 +50,7 @@ public class HitlService {
     }
 
     public HitlReview requestTripReview(TripRequest trip, Actor employee) {
-        if (trip.status() != com.roam.domain.TripRequestStatus.REJECTED) {
+        if (trip.status() != com.roam.domain.trip.TripRequestStatus.REJECTED) {
             throw RoamException.conflict("only a rejected Trip Request can request Administrator review");
         }
         HitlReview review = new HitlReview(

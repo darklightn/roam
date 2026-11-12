@@ -3,15 +3,15 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.AttemptOutcome;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.IntentRequest;
-import com.roam.domain.IntentType;
-import com.roam.domain.TripRequestData;
-import com.roam.domain.TripRequestStatus;
-import com.roam.domain.TripStop;
-import com.roam.domain.WorkflowResult;
-import com.roam.service.RoamException;
+import com.roam.agent.contract.WorkflowResult;
+import com.roam.domain.booking.AttemptOutcome;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.trip.TripRequestData;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.trip.TripStop;
+import com.roam.domain.workflow.IntentRequest;
+import com.roam.domain.workflow.IntentType;
+import com.roam.shared.RoamException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +124,7 @@ class MultiCityTest extends AcceptanceTestBase {
                 assertThat(order.state().name()).isEqualTo("SUBMITTED");
             }
             assertThat(order.state().name()).isNotEqualTo("CANCELLED");
-            assertThat(adapter.callCount(order.id(), com.roam.domain.OperationType.CANCEL)).isZero();
+            assertThat(adapter.callCount(order.id(), com.roam.domain.booking.OperationType.CANCEL)).isZero();
         }
         assertThat(store.auditEvents())
                 .noneMatch(event -> event.action().equals("BOOKING_ORDER_CANCELLED"));
@@ -134,7 +134,7 @@ class MultiCityTest extends AcceptanceTestBase {
     void multiCityResultsAreProtectedByEmployeeOwnership() {
         WorkflowResult result = run("session-multi-access", multiCityTrip(), fourIntents());
 
-        assertThatThrownBy(() -> workflow.result(result.workflowId(), otherEmployee))
+        assertThatThrownBy(() -> masterAgent.result(result.workflowId(), otherEmployee))
                 .isInstanceOf(RoamException.class)
                 .hasMessageContaining("own");
         assertThatThrownBy(() -> trace.trace("session-multi-access", employee))

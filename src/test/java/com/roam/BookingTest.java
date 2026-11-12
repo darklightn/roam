@@ -3,22 +3,22 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.AttemptOutcome;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.BookingResult;
-import com.roam.domain.IntentType;
-import com.roam.domain.Money;
-import com.roam.domain.OperationType;
-import com.roam.domain.TravelPlan;
-import com.roam.domain.TripRequestStatus;
-import com.roam.service.RoamException;
-import com.roam.service.WorkflowService;
+import com.roam.agent.contract.WorkflowPreparation;
+import com.roam.domain.booking.AttemptOutcome;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.booking.OperationType;
+import com.roam.domain.plan.TravelPlan;
+import com.roam.domain.shared.Money;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.domain.workflow.IntentType;
+import com.roam.service.dto.BookingResult;
+import com.roam.shared.RoamException;
 import org.junit.jupiter.api.Test;
 
 /** Ticket #14: submit in-budget flight and hotel Booking Orders. */
 class BookingTest extends AcceptanceTestBase {
 
-    private BookingOrder prepareFlightOrder(WorkflowService.WorkflowPreparation preparation) {
+    private BookingOrder prepareFlightOrder(WorkflowPreparation preparation) {
         TravelPlan plan = planning.get(preparation.planId(), employee);
         var option = plan.options().stream()
                 .filter(candidate -> candidate.type() == IntentType.FLIGHT)

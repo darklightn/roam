@@ -1,7 +1,8 @@
 package com.roam.service;
 
-import com.roam.domain.IntentPackage;
-import com.roam.domain.IntentRequest;
+import com.roam.domain.workflow.IntentPackage;
+import com.roam.domain.workflow.IntentRequest;
+import com.roam.shared.RoamException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;

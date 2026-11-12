@@ -3,17 +3,17 @@ package com.roam;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.roam.domain.Actor;
-import com.roam.domain.BookingOrder;
-import com.roam.domain.Decision;
-import com.roam.domain.HitlReview;
-import com.roam.domain.Money;
-import com.roam.domain.ReviewStatus;
-import com.roam.domain.ReviewType;
-import com.roam.domain.TripRequest;
-import com.roam.domain.TripRequestStatus;
-import com.roam.service.RoamException;
-import com.roam.service.WorkflowService;
+import com.roam.agent.contract.WorkflowPreparation;
+import com.roam.domain.booking.BookingOrder;
+import com.roam.domain.review.Decision;
+import com.roam.domain.review.HitlReview;
+import com.roam.domain.review.ReviewStatus;
+import com.roam.domain.review.ReviewType;
+import com.roam.domain.shared.Actor;
+import com.roam.domain.shared.Money;
+import com.roam.domain.trip.TripRequest;
+import com.roam.domain.trip.TripRequestStatus;
+import com.roam.shared.RoamException;
 import org.junit.jupiter.api.Test;
 
 /** Ticket #15: pause and resume an over-budget Booking Order. */
@@ -30,7 +30,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void overBudgetOrderIsBlockedBeforeSupplierCallAndCreatesASharedReview() {
         budget.setCeiling("emp-1", Money.cny("500"));
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-pause", sampleTrip(), flight("flight-1"));
         var result = selectAndExecute(preparation, employee);
 
@@ -39,7 +39,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         assertThat(order.lastFailure().type().name()).isEqualTo("OVER_BUDGET");
         assertThat(result.workflowStatus().name()).isEqualTo("WAITING_HITL");
         assertThat(result.intents().get(0).status().name()).isEqualTo("WAITING_HITL");
-        assertThat(adapter.callCount(order.id(), com.roam.domain.OperationType.BOOK)).isZero();
+        assertThat(adapter.callCount(order.id(), com.roam.domain.booking.OperationType.BOOK)).isZero();
         HitlReview review = budgetReview(order.id());
         assertThat(review.status()).isEqualTo(ReviewStatus.UNCLAIMED);
         assertThat(hitl.queue(admin)).hasSize(1);
@@ -49,7 +49,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void approvalResumesOnlyTheReviewedOrderAndDoesNotChangeTripApproval() {
         budget.setCeiling("emp-1", Money.cny("500"));
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-approve", sampleTrip(), flight("flight-1"));
         selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
@@ -76,7 +76,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void rejectionLeavesTheOrderPendingAndUnsubmitted() {
         budget.setCeiling("emp-1", Money.cny("500"));
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-reject", sampleTrip(), flight("flight-1"));
         selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
@@ -87,7 +87,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
         hitl.decide(review.id(), admin, Decision.REJECTED, "Fare exceeds policy for this route");
 
         assertThat(order.state().name()).isEqualTo("PENDING");
-        assertThat(adapter.callCount(order.id(), com.roam.domain.OperationType.BOOK)).isZero();
+        assertThat(adapter.callCount(order.id(), com.roam.domain.booking.OperationType.BOOK)).isZero();
         assertThat(store.workflows().values().iterator().next().intent("flight-1").status().name())
                 .isEqualTo("FAILED");
         assertThat(trip.isApprovedForCurrentVersion()).isTrue();
@@ -103,7 +103,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void decisionRequiresAReasonAndOnlyTheClaimingAdministratorCanDecide() {
         budget.setCeiling("emp-1", Money.cny("500"));
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-guard", sampleTrip(), flight("flight-1"));
         selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
@@ -124,15 +124,15 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void approvalOfOneOrderDoesNotResumeItsSiblingOrder() {
         budget.setCeiling("emp-1", Money.cny("300"));
-        WorkflowService.WorkflowPreparation preparation = prepareAndAssertApproved(
+        WorkflowPreparation preparation = prepareAndAssertApproved(
                 "session-budget-sibling", sampleTrip(), flight("flight-1"), hotel("hotel-1"));
         selectAndExecute(preparation, employee);
 
         BookingOrder flightOrder = store.orders().values().stream()
-                .filter(order -> order.type() == com.roam.domain.IntentType.FLIGHT)
+                .filter(order -> order.type() == com.roam.domain.workflow.IntentType.FLIGHT)
                 .findFirst().orElseThrow();
         BookingOrder hotelOrder = store.orders().values().stream()
-                .filter(order -> order.type() == com.roam.domain.IntentType.HOTEL)
+                .filter(order -> order.type() == com.roam.domain.workflow.IntentType.HOTEL)
                 .findFirst().orElseThrow();
         HitlReview flightReview = budgetReview(flightOrder.id());
         hitl.claim(flightReview.id(), admin);
@@ -151,7 +151,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     @Test
     void pendingReviewRemainsPendingWithReminders() {
         budget.setCeiling("emp-1", Money.cny("500"));
-        WorkflowService.WorkflowPreparation preparation =
+        WorkflowPreparation preparation =
                 prepareAndAssertApproved("session-budget-remind", sampleTrip(), flight("flight-1"));
         selectAndExecute(preparation, employee);
         BookingOrder order = store.orders().values().iterator().next();
@@ -168,7 +168,7 @@ class BudgetExceptionTest extends AcceptanceTestBase {
     void selfReviewIsAllowedAndAudited() {
         budget.setCeiling("admin-1", Money.cny("500"));
         Actor self = Actor.employee("admin-1");
-        var preparation = workflow.prepare(pkg("session-self", sampleTrip(), flight("flight-1")), self);
+        var preparation = masterAgent.prepare(pkg("session-self", sampleTrip(), flight("flight-1")), self);
         selectAndExecute(preparation, self);
         BookingOrder order = store.orders().values().iterator().next();
         HitlReview review = budgetReview(order.id());

@@ -17,8 +17,17 @@ This is a single-context repo:
 /
 ├── GLOSSARY.md
 ├── docs/adr/
-└── src/
+└── src/main/java/com/roam/
+    ├── api/             HTTP adapter + dto/
+    ├── agent/           MasterAgent, BookingAgent, TaskContext, contract/
+    ├── service/         use-case services + audit/observability/policy/review/security/dto
+    ├── domain/          pure model: trip/plan/booking/review/workflow/audit/shared/port
+    ├── infrastructure/  persistence/supplier/config
+    └── shared/          Ids, Redaction, RoamException
 ```
+
+Package dependency rules are recorded in `docs/adr/0002-package-layering.md` and enforced by
+`src/test/java/com/roam/architecture/ArchitectureTest.java`.
 
 ## Use the glossary's vocabulary
 

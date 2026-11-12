@@ -22,6 +22,21 @@ human decisions, recovery, and audit review.
 - Correlation from session to supplier order, P0 metrics, alerts mapped to a runbook, a manual
   recovery drill, append-only hash-chained audit, and uniform redaction (#18).
 
+## Package layout
+
+```text
+com.roam
+├── api/            HTTP adapter and api/dto
+├── agent/          MasterAgent, BookingAgent, TaskContext, agent/contract
+├── service/        use-case services + audit/observability/policy/review/security/dto
+├── domain/         pure model split by aggregate: trip/plan/booking/review/workflow/audit/shared/port
+├── infrastructure/ persistence/supplier/config
+└── shared/         Ids, Redaction, RoamException
+```
+
+Boundaries are enforced by ArchUnit in `src/test/java/com/roam/architecture/ArchitectureTest.java`.
+See `docs/adr/0002-package-layering.md` for the dependency rules and migration record.
+
 ## Build and test
 
 ```bash
@@ -67,9 +82,12 @@ slice. Key endpoints:
 
 - Domain vocabulary: `GLOSSARY.md`.
 - Runtime seams and substitutions: `docs/adr/0001-runtime-seams.md`.
+- Package layering and dependency rules: `docs/adr/0002-package-layering.md`.
 - Operations runbook: `docs/runbook/operations.md`.
 - P0 scenario-to-test map: `docs/acceptance/p0-scenarios.md`.
 - Tuniu facts: `docs/research/tuniu-openplatform-mcp.md`.
+- Package layering research and executable architecture rules: `docs/research/package-layering.md`,
+  `src/test/java/com/roam/architecture/ArchitectureTest.java`.
 
 ## Known MVP limits
 
